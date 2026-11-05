@@ -1,0 +1,80 @@
+import type { HydrogenRouterContextProvider } from "@shopify/hydrogen";
+import { isbot } from "isbot";
+import { renderToReadableStream } from "react-dom/server";
+import type { EntryContext } from "react-router";
+import { ServerRouter } from "react-router";
+import {
+  createContentSecurityPolicy,
+  generateNonce,
+  NonceProvider,
+} from "~/utils/csp";
+import { getFullPageCacheControl } from "~/utils/full-page-cache";
+import { getWeaverseCsp } from "~/weaverse/csp";
+
+export default async function handleRequest(
+  request: Request,
+  responseStatusCode: number,
+  responseHeaders: Headers,
+  reactRouterContext: EntryContext,
+  context: HydrogenRouterContextProvider,
+) {
+  const nonce = generateNonce();
+  const header = createContentSecurityPolicy(
+    nonce,
+    getWeaverseCsp(request, context.env),
+    {
+      checkoutDomain:
+        context.env?.PUBLIC_CHECKOUT_DOMAIN || context.env?.PUBLIC_STORE_DOMAIN,
+      storeDomain: context.env?.PUBLIC_STORE_DOMAIN,
+    },
+  );
+
+  const body = await renderToReadableStream(
+    <NonceProvider value={nonce}>
+      <ServerRouter
+        context={reactRouterContext}
+        url={request.url}
+        nonce={nonce}
+      />
+    </NonceProvider>,
+    {
+      nonce,
+      signal: request.signal,
+      onError(error) {
+        console.error(error);
+        responseStatusCode = 500;
+      },
+    },
+  );
+
+  if (isbot(request.headers.get("user-agent"))) {
+    await Promise.race([
+      body.allReady,
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
+  }
+
+  responseHeaders.set("Content-Type", "text/html");
+  // TODO: change to Content-Security-Policy when you ready with your CSP configs.
+  responseHeaders.set("Content-Security-Policy-Report-Only", header);
+  // Opt anonymous document responses into Oxygen's full-page cache. Both
+  // headers are required by Oxygen; responses that commit a session cookie
+  // (Set-Cookie in server.ts) are excluded by Oxygen automatically. See
+  // app/utils/full-page-cache.ts for the gating rules.
+  const fullPageCacheControl = getFullPageCacheControl(
+    request,
+    responseStatusCode,
+    responseHeaders.get("Cache-Control"),
+  );
+  if (fullPageCacheControl) {
+    responseHeaders.set("Oxygen-Cache-Control", fullPageCacheControl);
+    if (!responseHeaders.has("Vary")) {
+      responseHeaders.set("Vary", "Accept-Encoding");
+    }
+  }
+
+  return new Response(body, {
+    headers: responseHeaders,
+    status: responseStatusCode,
+  });
+}
