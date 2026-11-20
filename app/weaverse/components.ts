@@ -15,6 +15,9 @@ import * as ColumnsWithImages from "~/sections/columns-with-images";
 import * as ColumnWithImageItem from "~/sections/columns-with-images/column";
 import * as ColumnsWithImagesItems from "~/sections/columns-with-images/items";
 import * as ContactUs from "~/sections/contact-us";
+import * as DemoShowcase from "~/sections/demo-showcase";
+import * as DemoShowcaseItem from "~/sections/demo-showcase/item";
+import * as DemoShowcaseItems from "~/sections/demo-showcase/items";
 import * as MessageUsButton from "~/sections/contact-us/message-us-button";
 import * as Countdown from "~/sections/countdown";
 import * as CountDownTimer from "~/sections/countdown/timer";
@@ -119,6 +122,9 @@ export const components: HydrogenComponent[] = [
   NewsLetterForm,
   ContactUs,
   MessageUsButton,
+  DemoShowcase,
+  DemoShowcaseItems,
+  DemoShowcaseItem,
   FeaturedProducts,
   FeaturedProductItems,
   Testimonial,
